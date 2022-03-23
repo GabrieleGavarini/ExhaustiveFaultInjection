@@ -1,6 +1,7 @@
 from pytorchfi.core import fault_injection
 import struct
 
+
 class BitFlipFI(fault_injection):
 
     def __init__(self, model, batch_size, fault_location, input_shape=None, **kwargs):

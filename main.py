@@ -6,31 +6,39 @@ from tqdm import tqdm, trange
 
 import torch
 
+import argparse
+
 from models.utils import load_CIFAR10_datasets, load_from_dict
 from models.resnet import resnet20
 
 from BitFlipFI import BitFlipFI
 
-def main():
+def main(layer_start=0, layer_end=-1):
     device = 'cuda' if torch.cuda.is_available() else 'cpu'
     torch.device(device)
     print(f'Running on device {device}')
 
     _, _, test_loader = load_CIFAR10_datasets(train_batch_size=1)
 
+    image_per_class = 10
     selected_test_list = []
     image_class_counter = [0] * 10
     for test_image in test_loader:
-        if image_class_counter[test_image[1]] < 10:
+        if image_class_counter[test_image[1]] < image_per_class:
             selected_test_list.append(test_image)
             image_class_counter[test_image[1]] += 1
 
     resnet = resnet20()
+    resnet.to(device)
     load_from_dict(network=resnet,
                    device=device,
                    path='models/pretrained_models/resnet20-trained.th')
 
     resnet_layers = [m for m in resnet.modules() if isinstance(m, torch.nn.Conv2d) or isinstance(m, torch.nn.Linear)]
+    if layer_end == -1:
+        resnet_layers = resnet_layers[layer_start:]
+    else:
+        resnet_layers = resnet_layers[layer_start:layer_end]
     resnet_layers_shape = [layer.weight.shape for layer in resnet_layers]
 
     exhaustive_fault_injection(net=resnet,
@@ -47,7 +55,7 @@ def exhaustive_fault_injection(net,
                                device):
 
     cwd = os.getcwd()
-    os.makedirs(f'{cwd}/{net_name}/fault_injection', exist_ok=True)
+    os.makedirs(f'{cwd}/fault_injection/{net_name}', exist_ok=True)
 
     exhaustive_fault_list = []
     for layer, layer_shape in enumerate(tqdm(net_layer_shape, desc='Generating exhaustive fault list')):
@@ -70,9 +78,15 @@ def exhaustive_fault_injection(net,
     with torch.set_grad_enabled(False):
         net.eval()
 
-        with open(f'{cwd}/{net_name}/fault_injection/exhaustive_results.csv', 'w', newline='') as f_inj:
+        if layer_end == -1:
+            filename = f'{cwd}/fault_injection/{net_name}/{layer_start}-{len(net_layer_shape) + layer_start}_exhaustive_results.csv'
+        else:
+            filename = f'{cwd}/fault_injection/{net_name}/{layer_start}-{layer_end}_exhaustive_results.csv'
+
+        with open(filename, 'w', newline='') as f_inj:
             writer_inj = csv.writer(f_inj)
             writer_inj.writerow(['Injection',
+                                 'Layer',
                                  'ImageIndex',  # Image index
                                  'Top_1',
                                  'Top_2',
@@ -84,14 +98,19 @@ def exhaustive_fault_injection(net,
                                  'NoChange'])
             f_inj.flush()
 
-            for injection_index, fault in enumerate(tqdm(exhaustive_fault_list, desc='Exhaustive fault injection campaign')):
+            pbar = tqdm(exhaustive_fault_list, desc='Exhaustive fault injection campaign')
+            for injection_index, fault in enumerate(pbar):
                 layer = fault[0]
                 bit = fault[-1]
+
+                layer_index = layer - layer_start + 1
+
+                pbar.set_description(f'Exhaustive fault injection campaign (layer {layer_index} of {len(net_layer_shape)})')
 
                 pfi_model = BitFlipFI(net,
                                       fault_location=fault,
                                       batch_size=1,
-                                      input_shape=[3, 224, 224],
+                                      input_shape=[3, 32, 32],
                                       layer_types=["all"],
                                       use_cuda=(device == 'cuda'))
 
@@ -106,6 +125,7 @@ def exhaustive_fault_injection(net,
                     top_5 = torch.topk(y_pred, 5)
 
                     output_list = [injection_index,
+                                   layer_index,
                                    image_index,
                                    int(top_5.indices[0][0]),
                                    int(top_5.indices[0][1]),
@@ -121,4 +141,15 @@ def exhaustive_fault_injection(net,
 
 
 if __name__ == '__main__':
-    main()
+    parser = argparse.ArgumentParser(description='Exhaustive fault injection')
+    parser.add_argument('--layer-start', type=int, default=0,
+                        help='From which layer to start the exhaustive fault injection campaign')
+    parser.add_argument('--layer-end', type=int, default=-1,
+                        help='sum the integers (default: find the max)')
+
+    args = parser.parse_args()
+
+    layer_start = args.layer_start
+    layer_end = args.layer_end
+
+    main(layer_start, layer_end)
