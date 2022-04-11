@@ -5,15 +5,17 @@ from utils import plot_graph, extract_samples_p_n
 # color_bar_n_1 = '#f3880a'
 # color_bar_n_2 = '#f3880a'
 
-layer = 0
-number_biased_samples = 20
-number_per_layer_samples = 20
+layer = 1
+number_biased_samples = 10
+number_per_layer_samples = 10
 
 biased_sample, unbiased_sample, date_per_layer, exhaustive_p = extract_samples_p_n(layer=layer,
+                                                                                   net_name='resnet20',
                                                                                    number_biased_samples=number_biased_samples,
                                                                                    number_unbiased_samples=0,
                                                                                    number_per_layer_samples=number_per_layer_samples,
-                                                                                   seed=51195)
+                                                                                   seed=51195,
+                                                                                   load_if_exist=False)
 
 plot_graph(biased_sample_p_n=biased_sample[0],
            biased_sample_error=biased_sample[1],

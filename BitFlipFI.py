@@ -28,7 +28,7 @@ class BitFlipFI(fault_injection):
 
         float_list = []
         a = struct.pack('!f', self.golden_value)
-        b = struct.pack('!I', (2 ** self.bit))
+        b = struct.pack('!I', int(2. ** self.bit))
         for ba, bb in zip(a, b):
             float_list.append(ba ^ bb)
 
@@ -41,7 +41,7 @@ class BitFlipFI(fault_injection):
 
         float_list = []
         a = struct.pack('!f', self.golden_value)
-        b = struct.pack('!I', (2 ** self.bit))
+        b = struct.pack('!I', int(2. ** self.bit))
         for ba, bb in zip(a, b):
             if self.value == 1:
                 float_list.append(ba | bb)

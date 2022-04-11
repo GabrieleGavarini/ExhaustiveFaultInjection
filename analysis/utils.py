@@ -42,7 +42,7 @@ def plot_graph(biased_sample_p_n,
 
     fig, ax1 = plt.subplots(1, figsize=(12, 6))
 
-    critical_top = 3
+    critical_top = 10
 
     xticks = np.arange(0, total_number_of_samples)
     xticks_labels = [f'S{i}' for i in np.arange(1, number_biased_samples + 1)] + [f'S{i + number_biased_samples}' for i in np.arange(1, number_per_layer_samples + 1)]
@@ -69,16 +69,16 @@ def plot_graph(biased_sample_p_n,
 
     if mode == 'complete' or mode == 'faults':
         ax1.bar(x=x_1,
-                height=[p for p, n in biased_sample_p_n],
-                yerr=biased_sample_error,
+                height=[p * 100 for p, n in biased_sample_p_n],
+                yerr=[error * 100 for error in biased_sample_error],
                 error_kw=dict(ecolor='grey', alpha=.95, lw=1.25, capsize=2, capthick=.5, zorder=2),
                 width=width,
                 color=color_bar_critical_1,
                 label='Proposed (left)',
                 zorder=1)
         ax1.bar(x=x_2,
-                height=[p for p, n in date_per_layer_p_n],
-                yerr=date_per_layer_error,
+                height=[p * 100 for p, n in date_per_layer_p_n],
+                yerr=[error * 100 for error in date_per_layer_error],
                 error_kw=dict(ecolor='black', alpha=.75, lw=1.25, capsize=2, capthick=.5, zorder=2),
                 width=width,
                 color=color_bar_critical_2,
@@ -128,10 +128,15 @@ def plot_graph(biased_sample_p_n,
         ax2.legend(loc='upper left')
 
     fig.show()
+    os.makedirs('plot/DATEvsProposed', exist_ok=True)
     fig.savefig(f'plot/DATEvsProposed/{str(layer).zfill(2)}_{mode}_critical.png')
 
 
-def variance(p, n):
+def poisson_variance(p, n):
+    return n * p
+
+
+def normal_variance(p, n):
     return n * p * (1 - p)
 
 
@@ -139,39 +144,28 @@ def finite_population_correction(n, N):
     return (N - n) / (n * (N - 1))
 
 
-def compute_error_margin(p, n, N, t=2.58):
-    return t * math.sqrt(variance(p, n) * finite_population_correction(n, N) / n)
+def compute_error_margin(p, n, N=None, t=2.58, finite_population=True):
+    """                                                                                                         .
+00    .     Compute the error margin for a given p, n, N and t. It is possible to specify a finite_population factor
+    :param p: The sampled p
+    :param n: The number of samples
+    :param N: Default None. The population size. Only used if finite_population is True
+    :param t: The z-index of the confidence
+    :param finite_population: Default True. Whether to use the finite population correction factor
+    :return: the error margin
+    """
 
+    population_variance = normal_variance(p, n)
 
-def get_variance_list(df, N):
-
-    variance_list = [
-        variance(
-            p=df.loc[bit].Critical / 100,
-            n=df.loc[bit].InjectedFaults)
-        for bit in df.index]
-
-    variance_list = [
-        variance_list[bit] * finite_population_correction(
-            n=df.loc[bit].InjectedFaults,
-            N=N
-        )
-        for bit in df.index]
-
-    return variance_list
-
-
-def compute_mean_error_margin(df, N, t=2.58, alpha=1/32, two_means=True):
-
-    variance_list = get_variance_list(df, N)
-    n_tot = df.InjectedFaults.sum()
-
-    if two_means:
-        error_margin = t * alpha * math.sqrt(np.sum(variance_list[bit] / df.loc[bit].InjectedFaults for bit in df.index))
+    if finite_population:
+        # sample_variance = population_variance * finite population factor
+        sample_variance = population_variance * finite_population_correction(n, N)
     else:
-        error_margin = t * alpha * math.sqrt(np.sum(variance_list)/n_tot)
+        # sample_variance = population_variance / n
+        sample_variance = population_variance / n
 
-    return error_margin
+    # The margin of error
+    return t * math.sqrt(sample_variance / n)
 
 
 def return_complete_df(image_df):
@@ -183,7 +177,7 @@ def return_complete_df(image_df):
         # We are actually doing bit-flips since all the stuck-at that do not change value are always masked
         adjusted_length = len(complete_df_bit)
 
-        masked = (complete_df_bit.Top_1 == complete_df_bit.Golden).sum() / adjusted_length
+        masked = np.sum(complete_df_bit.Top_1 == complete_df_bit.Golden) / adjusted_length
         critical = 1 - masked
 
         result_dicts.append({'Bit': bit,
@@ -209,14 +203,15 @@ def create_sample(df, n, random_state=None):
     return pd.concat(sample_df_list)
 
 
-def return_p_and_n(df):
-    p = df.Critical.mean()
+def return_p_and_n(df, convert_p_to_probability=True):
+    p = df.Critical.mean() / 100 if convert_p_to_probability else df.Critical.mean()
     n = df.InjectedFaults.sum()
 
     return p, n
 
 
 def extract_samples_p_n(layer,
+                        net_name,
                         number_biased_samples,
                         number_unbiased_samples,
                         number_per_layer_samples,
@@ -226,7 +221,8 @@ def extract_samples_p_n(layer,
                         seed=1234):
 
     # load N from file
-    # N = pd.read_csv(f'{number_of_samples_folder}/N_layers.csv', index_col=0).loc[layer]['N']
+    number_of_samples_folder = f'{number_of_samples_folder}/{net_name}'
+    N = pd.read_csv(f'{number_of_samples_folder}/N_layers.csv', index_col=0).loc[layer]['N']
 
     try:
         if not load_if_exist:
@@ -254,9 +250,11 @@ def extract_samples_p_n(layer,
 
         df_list = []
         for filename in os.listdir(image_merge_folder):
-            df_list.append(pd.read_csv(f'{image_merge_folder}/{filename}'))
+            df_list.append(pd.read_csv(f'{image_merge_folder}/{filename}', low_memory=False).dropna())
         image_df = pd.concat(df_list, ignore_index=True)
         image_df = image_df.drop(['Top_2', 'Top_3', 'Top_4', 'Top_5'], axis=1)
+
+        image_df = image_df[image_df.Layer.astype(int) == layer]
 
         stuck_at_df = copy.deepcopy(image_df)
         stuck_at_df.Top_1 = stuck_at_df.Golden
@@ -270,17 +268,16 @@ def extract_samples_p_n(layer,
         random_state = np.random.default_rng(seed=seed).bit_generator
 
         # Biased with critical
-        # biased_n_by_bit = pd.read_csv(f'{number_of_samples_folder}/n_tuning_scenario_1.csv', index_col=0).loc[layer].to_list()
-        # biased_n_by_bit.reverse()
+        biased_n_by_bit = pd.read_csv(f'{number_of_samples_folder}/n_tuning_scenario_1.csv', index_col=0).loc[layer].to_list()
+        biased_n_by_bit.reverse()
 
         biased_sample_list = [
             pd.DataFrame(return_complete_df(create_sample(image_df,
-                                                          n=1000,
+                                                          n=biased_n_by_bit,
                                                           random_state=random_state))).set_index('Bit')
             for _ in tqdm(np.arange(0, number_biased_samples), desc='Sampling biased')]
         biased_sample_p_n = [return_p_and_n(biased_sample) for biased_sample in biased_sample_list]
-        biased_sample_error = [compute_error_margin(p / 100, n, N) * 100 for p, n in biased_sample_p_n]
-        biased_sample_error = [compute_mean_error_margin(biased_sample, N/32) * 100 for biased_sample in biased_sample_list]
+        biased_sample_error = [compute_error_margin(p, n, N, finite_population=True) for p, n in biased_sample_p_n]
         np.save(f'{load_folder}/{str(layer).zfill(2)}/{seed}_{number_biased_samples}_biased_sample_p_n.npy',  np.asarray(biased_sample_p_n))
         np.save(f'{load_folder}/{str(layer).zfill(2)}/{seed}_{number_biased_samples}_biased_sample_error.npy',  np.asarray(biased_sample_error))
 
@@ -294,12 +291,12 @@ def extract_samples_p_n(layer,
                                                           random_state=random_state))).set_index('Bit')
             for _ in tqdm(np.arange(0, number_unbiased_samples), desc='Sampling unbiased')]
         unbiased_sample_p_n = [return_p_and_n(unbiased_sample) for unbiased_sample in unbiased_sample_list]
-        unbiased_sample_error = [compute_error_margin(p / 100, n, N) * 100 for p, n in unbiased_sample_p_n]
+        unbiased_sample_error = [compute_error_margin(p, n, N) for p, n in unbiased_sample_p_n]
         np.save(f'{load_folder}/{str(layer).zfill(2)}/{seed}_{number_unbiased_samples}_unbiased_sample_p_n.npy',  np.asarray(unbiased_sample_p_n))
         np.save(f'{load_folder}/{str(layer).zfill(2)}/{seed}_{number_unbiased_samples}_unbiased_sample_error.npy',  np.asarray(unbiased_sample_error))
 
         # Date per layer
-        date_per_layer_n = int(pd.read_csv(f'{number_of_samples_folder}/n_date_per_layer.csv', index_col=0).loc[layer].values[0])
+        date_per_layer_n = int(pd.read_csv(f'{number_of_samples_folder}/n_date_per_layer.csv', index_col=0, header=None).loc[layer].values[0])
 
         date_per_layer_list = [
             pd.DataFrame(return_complete_df(create_sample(image_df,
@@ -307,8 +304,7 @@ def extract_samples_p_n(layer,
                                                           random_state=random_state))).set_index('Bit')
             for _ in tqdm(np.arange(0, number_per_layer_samples), desc='Sampling DATE09 per layer')]
         date_per_layer_p_n = [return_p_and_n(date_per_layer) for date_per_layer in date_per_layer_list]
-        date_per_layer_error = [compute_error_margin(p / 100, n, N) * 100 for p, n in date_per_layer_p_n]
-        date_per_layer_error = [compute_mean_error_margin(date_per_layer_sample, N/32) * 100 for date_per_layer_sample in date_per_layer_list]
+        date_per_layer_error = [compute_error_margin(p, n, N) for p, n in date_per_layer_p_n]
         np.save(f'{load_folder}/{str(layer).zfill(2)}/{seed}_{number_per_layer_samples}_date_per_layer_p_n.npy',  np.asarray(date_per_layer_p_n))
         np.save(f'{load_folder}/{str(layer).zfill(2)}/{seed}_{number_per_layer_samples}_date_per_layer_error.npy',  np.asarray(date_per_layer_error))
 
@@ -330,6 +326,7 @@ def extract_samples_p_n(layer,
 
     sample_df = pd.DataFrame(sample_list).transpose()
     sample_df.columns = ['n', 'p', 'error_margin']
+    os.makedirs('csv', exist_ok=True)
     sample_df.to_csv(f'csv/{str(layer).zfill(2)}_samples.csv')
 
     return [biased_sample_p_n, biased_sample_error], [unbiased_sample_p_n, unbiased_sample_error], [date_per_layer_p_n, date_per_layer_error], exhaustive_p
