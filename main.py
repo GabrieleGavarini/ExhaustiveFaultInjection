@@ -115,9 +115,8 @@ def exhaustive_fault_injection(net,
                         for dim2 in np.arange(layer_shape[2]):
                             for dim3 in np.arange(layer_shape[3]):
                                 for bit in np.arange(0, 32):
-                                    fault = [layer, k, dim1, dim2, dim3, bit]
+                                    fault = [layer + layer_start, k, dim1, dim2, dim3, bit]
 
-                                    pbar.set_description(f'Exhaustive fault injection campaign (layer {layer} of {len(net_layer_shape) + layer_start - 1})')
                                     pbar.set_description(f'fault: {fault}')
 
                                     pfi_model = BitFlipFI(net,
