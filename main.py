@@ -143,7 +143,7 @@ def exhaustive_fault_injection(net,
 
                                         for index in range(0, len(top_5.indices)):
                                             output_list = [injection_index,
-                                                           layer,
+                                                           layer + layer_start,
                                                            image_index * loader.batch_size + index,
                                                            int(top_5.indices[index][0]),
                                                            int(top_5.indices[index][1]),
