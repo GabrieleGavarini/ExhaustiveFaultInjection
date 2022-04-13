@@ -11,6 +11,7 @@ import argparse
 from models.utils import load_CIFAR10_datasets, load_from_dict
 from models.resnet import resnet20
 from models.densenet import densenet121
+from models.mobilenetv2 import MobileNetV2
 
 from BitFlipFI import BitFlipFI
 
@@ -22,7 +23,7 @@ def main(layer_start=0, layer_end=-1, network_name='resnet20'):
 
     _, _, test_loader = load_CIFAR10_datasets(train_batch_size=1)
 
-    image_per_class = 10
+    image_per_class = 1
     selected_test_list = []
     image_class_counter = [0] * 10
     for test_image in test_loader:
@@ -33,9 +34,12 @@ def main(layer_start=0, layer_end=-1, network_name='resnet20'):
     if network_name == 'resnet20':
         network = resnet20()
         network_path = 'models/pretrained_models/resnet20-trained.th'
-    else:
+    elif network_name == 'densenet121':
         network = densenet121()
         network_path = 'models/pretrained_models/densenet121.pt'
+    elif network_name == 'mobilenet-v2':
+        network = MobileNetV2()
+        network_path = 'models/pretrained_models/mobilenetv2.pth'
 
     network.to(device)
     load_from_dict(network=network,
@@ -153,10 +157,10 @@ def exhaustive_fault_injection(net,
                                                        bit,
                                                        False]
 
-                                        pbar.update(1)
-
                                         writer_inj.writerow(output_list)
                                         f_inj.flush()
+
+                                    pbar.update(1)
                                     injection_index += 1
 
 
@@ -167,7 +171,7 @@ if __name__ == '__main__':
     parser.add_argument('--layer-end', type=int, default=-1,
                         help='In which layer end the exhaustive fault injection campaign')
     parser.add_argument('--network', type=str, default='resnet20',
-                        choices=['resnet20', 'densenet121'])
+                        choices=['resnet20', 'densenet121', 'mobilenet-v2'])
 
     args = parser.parse_args()
 
