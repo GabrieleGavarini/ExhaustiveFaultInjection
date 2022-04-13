@@ -21,15 +21,7 @@ def main(layer_start=0, layer_end=-1, network_name='resnet20'):
     torch.device(device)
     print(f'Running on device {device}')
 
-    _, _, test_loader = load_CIFAR10_datasets(train_batch_size=1)
-
-    image_per_class = 1
-    selected_test_list = []
-    image_class_counter = [0] * 10
-    for test_image in test_loader:
-        if image_class_counter[test_image[1]] < image_per_class:
-            selected_test_list.append(test_image)
-            image_class_counter[test_image[1]] += 1
+    _, _, test_loader = load_CIFAR10_datasets(test_batch_size=10, test_image_per_class=1)
 
     if network_name == 'resnet20':
         network = resnet20()
@@ -56,7 +48,7 @@ def main(layer_start=0, layer_end=-1, network_name='resnet20'):
     exhaustive_fault_injection(net=network,
                                net_name=network_name,
                                net_layer_shape=resnet_layers_shape,
-                               loader=selected_test_list,
+                               loader=test_loader,
                                device=device,
                                layer_start=layer_start,
                                layer_end=layer_end)
@@ -145,20 +137,20 @@ def exhaustive_fault_injection(net,
 
                                         top_5 = torch.topk(y_pred, 5)
 
-                                        output_list = [injection_index,
-                                                       layer,
-                                                       image_index,
-                                                       int(top_5.indices[0][0]),
-                                                       int(top_5.indices[0][1]),
-                                                       int(top_5.indices[0][2]),
-                                                       int(top_5.indices[0][3]),
-                                                       int(top_5.indices[0][4]),
-                                                       int(y_true),
-                                                       bit,
-                                                       False]
-
-                                        writer_inj.writerow(output_list)
-                                        f_inj.flush()
+                                        for index in range(0, len(top_5.indices)):
+                                            output_list = [injection_index,
+                                                           layer,
+                                                           image_index * loader.batch_size + index,
+                                                           int(top_5.indices[index][0]),
+                                                           int(top_5.indices[index][1]),
+                                                           int(top_5.indices[index][2]),
+                                                           int(top_5.indices[index][3]),
+                                                           int(top_5.indices[index][4]),
+                                                           int(y_true[index]),
+                                                           bit,
+                                                           False]
+                                            writer_inj.writerow(output_list)
+                                            f_inj.flush()
 
                                     pbar.update(1)
                                     injection_index += 1
