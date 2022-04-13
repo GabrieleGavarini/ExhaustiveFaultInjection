@@ -38,16 +38,21 @@ def main(layer_start=0, layer_end=-1, network_name='resnet20'):
                    device=device,
                    path=network_path)
 
-    network_layers = [m for m in network.modules() if isinstance(m, torch.nn.Conv2d) or isinstance(m, torch.nn.Linear)]
+    network_layers = []
+    for name, param in network.named_parameters():
+        if "weight" in name and ("features" in name or "conv" in name):
+            network_layers.append(param)
+
     if layer_end == -1:
-        resnet_layers = network_layers[layer_start:]
+        network_layers = network_layers[layer_start:]
     else:
-        resnet_layers = network_layers[layer_start:layer_end]
-    resnet_layers_shape = [layer.weight.shape for layer in resnet_layers]
+        network_layers = network_layers[layer_start:layer_end]
+
+    network_layers_shape = [layer.shape for layer in network_layers]
 
     exhaustive_fault_injection(net=network,
                                net_name=network_name,
-                               net_layer_shape=resnet_layers_shape,
+                               net_layer_shape=network_layers_shape,
                                loader=test_loader,
                                device=device,
                                layer_start=layer_start,
