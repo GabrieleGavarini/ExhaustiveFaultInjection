@@ -44,6 +44,8 @@ class Plotter:
                  linestyle='--',
                  color=self.exhaustive_color)
 
+        ax1.set_ylim(0, 1.6)
+
         fig.show()
         os.makedirs('plot/DATEvsProposed', exist_ok=True)
         fig.savefig(f'plot/DATEvsProposed/layer_analysis_{sample_name}.png')
@@ -52,6 +54,7 @@ class Plotter:
                     biased_sample_p_n,
                     unbiased_sample_p_n,
                     date_per_layer_p_n,
+                    date_p_n,
                     exhaustive_p):
 
         self._plot(sample_p=[[p * 100 for p, n in layer] for layer in biased_sample_p_n],
@@ -63,6 +66,9 @@ class Plotter:
         self._plot(sample_p=[[p * 100 for p, n in layer] for layer in date_per_layer_p_n],
                    exhaustive_p=exhaustive_p,
                    sample_name='date_per_layer')
+        self._plot(sample_p=[[p * 100 for p, n in layer] for layer in date_p_n],
+                   exhaustive_p=exhaustive_p,
+                   sample_name='date')
 
     def plot_graph(self,
                    biased_sample_p_n,

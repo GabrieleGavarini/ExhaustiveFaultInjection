@@ -51,8 +51,10 @@ def return_complete_df(image_df):
 
         # We are actually doing bit-flips since all the stuck-at that do not change value are always masked
         adjusted_length = len(complete_df_bit)
-
-        masked = np.sum(complete_df_bit.Top_1 == complete_df_bit.Golden) / adjusted_length
+        if adjusted_length == 0:
+            masked = 1
+        else:
+            masked = np.sum(complete_df_bit.Top_1 == complete_df_bit.Golden) / adjusted_length
         critical = 1 - masked
 
         result_dicts.append({'Bit': bit,
@@ -176,47 +178,48 @@ def extract_samples_p_n(total_layer_number,
             os.makedirs(f'{load_folder}/{str(layer).zfill(2)}', exist_ok=True)
 
             image_df_layer = image_df[image_df.Layer.astype(int) == layer]
+            N_layer = N[layer]
 
-            # # Biased with critical
-            # biased_n_by_bit = pd.read_csv(f'{number_of_samples_folder}/n_tuning_scenario_1.csv', index_col=0).loc[layer].to_list()
-            # biased_n_by_bit.reverse()
-            #
-            # biased_sample_list = [
-            #     pd.DataFrame(return_complete_df(create_sample(image_df_layer,
-            #                                                   n=biased_n_by_bit,
-            #                                                   random_state=random_state))).set_index('Bit')
-            #     for _ in tqdm(np.arange(0, number_biased_samples), desc='Sampling biased')]
-            # biased_sample_p_n.append([return_p_and_n(biased_sample) for biased_sample in biased_sample_list])
-            # biased_sample_error.append([compute_error_margin(p, n, N[layer], finite_population=True) for p, n in biased_sample_p_n[layer]])
-            # np.save(f'{load_folder}/{str(layer).zfill(2)}/{seed}_{number_biased_samples}_biased_sample_p_n.npy',  np.asarray(biased_sample_p_n[layer]))
-            # np.save(f'{load_folder}/{str(layer).zfill(2)}/{seed}_{number_biased_samples}_biased_sample_error.npy',  np.asarray(biased_sample_error[layer]))
-            #
-            # # Unbiased
-            # unbiased_n_by_bit = pd.read_csv(f'{number_of_samples_folder}/n_worst_case.csv', index_col=0).loc[layer].to_list()
-            # unbiased_n_by_bit.reverse()
-            #
-            # unbiased_sample_list = [
-            #     pd.DataFrame(return_complete_df(create_sample(image_df_layer,
-            #                                                   n=unbiased_n_by_bit,
-            #                                                   random_state=random_state))).set_index('Bit')
-            #     for _ in tqdm(np.arange(0, number_unbiased_samples), desc='Sampling unbiased')]
-            # unbiased_sample_p_n.append([return_p_and_n(unbiased_sample) for unbiased_sample in unbiased_sample_list])
-            # unbiased_sample_error.append([compute_error_margin(p, n, N[layer]) for p, n in unbiased_sample_p_n[layer]])
-            # np.save(f'{load_folder}/{str(layer).zfill(2)}/{seed}_{number_unbiased_samples}_unbiased_sample_p_n.npy',  np.asarray(unbiased_sample_p_n[layer]))
-            # np.save(f'{load_folder}/{str(layer).zfill(2)}/{seed}_{number_unbiased_samples}_unbiased_sample_error.npy',  np.asarray(unbiased_sample_error[layer]))
-            #
-            # # Date per layer
-            # date_per_layer_n = int(pd.read_csv(f'{number_of_samples_folder}/n_date_per_layer.csv', index_col=0, header=None).loc[layer].values[0])
-            #
-            # date_per_layer_list = [
-            #     pd.DataFrame(return_complete_df(create_sample(image_df_layer,
-            #                                                   n=date_per_layer_n,
-            #                                                   random_state=random_state))).set_index('Bit')
-            #     for _ in tqdm(np.arange(0, number_date_per_layer_samples), desc='Sampling DATE09 per layer')]
-            # date_per_layer_p_n.append([return_p_and_n(date_per_layer) for date_per_layer in date_per_layer_list])
-            # date_per_layer_error.append([compute_error_margin(p, n, N[layer]) for p, n in date_per_layer_p_n[layer]])
-            # np.save(f'{load_folder}/{str(layer).zfill(2)}/{seed}_{number_date_per_layer_samples}_date_per_layer_p_n.npy', np.asarray(date_per_layer_p_n[layer]))
-            # np.save(f'{load_folder}/{str(layer).zfill(2)}/{seed}_{number_date_per_layer_samples}_date_per_layer_error.npy', np.asarray(date_per_layer_error[layer]))
+            # Biased with critical
+            biased_n_by_bit = pd.read_csv(f'{number_of_samples_folder}/n_tuning_scenario_1.csv', index_col=0).loc[layer].to_list()
+            biased_n_by_bit.reverse()
+
+            biased_sample_list = [
+                pd.DataFrame(return_complete_df(create_sample(image_df_layer,
+                                                              n=biased_n_by_bit,
+                                                              random_state=random_state))).set_index('Bit')
+                for _ in tqdm(np.arange(0, number_biased_samples), desc='Sampling biased')]
+            biased_sample_p_n.append([return_p_and_n(biased_sample) for biased_sample in biased_sample_list])
+            biased_sample_error.append([compute_error_margin(p, n, N_layer, finite_population=True) for p, n in biased_sample_p_n[layer]])
+            np.save(f'{load_folder}/{str(layer).zfill(2)}/{seed}_{number_biased_samples}_biased_sample_p_n.npy',  np.asarray(biased_sample_p_n[layer]))
+            np.save(f'{load_folder}/{str(layer).zfill(2)}/{seed}_{number_biased_samples}_biased_sample_error.npy',  np.asarray(biased_sample_error[layer]))
+
+            # Unbiased
+            unbiased_n_by_bit = pd.read_csv(f'{number_of_samples_folder}/n_worst_case.csv', index_col=0).loc[layer].to_list()
+            unbiased_n_by_bit.reverse()
+
+            unbiased_sample_list = [
+                pd.DataFrame(return_complete_df(create_sample(image_df_layer,
+                                                              n=unbiased_n_by_bit,
+                                                              random_state=random_state))).set_index('Bit')
+                for _ in tqdm(np.arange(0, number_unbiased_samples), desc='Sampling unbiased')]
+            unbiased_sample_p_n.append([return_p_and_n(unbiased_sample) for unbiased_sample in unbiased_sample_list])
+            unbiased_sample_error.append([compute_error_margin(p, n, N_layer) for p, n in unbiased_sample_p_n[layer]])
+            np.save(f'{load_folder}/{str(layer).zfill(2)}/{seed}_{number_unbiased_samples}_unbiased_sample_p_n.npy',  np.asarray(unbiased_sample_p_n[layer]))
+            np.save(f'{load_folder}/{str(layer).zfill(2)}/{seed}_{number_unbiased_samples}_unbiased_sample_error.npy',  np.asarray(unbiased_sample_error[layer]))
+
+            # Date per layer
+            date_per_layer_n = int(pd.read_csv(f'{number_of_samples_folder}/n_date_per_layer.csv', index_col=0, header=None).loc[layer].values[0])
+
+            date_per_layer_list = [
+                pd.DataFrame(return_complete_df(create_sample(image_df_layer,
+                                                              n=date_per_layer_n,
+                                                              random_state=random_state))).set_index('Bit')
+                for _ in tqdm(np.arange(0, number_date_per_layer_samples), desc='Sampling DATE09 per layer')]
+            date_per_layer_p_n.append([return_p_and_n(date_per_layer) for date_per_layer in date_per_layer_list])
+            date_per_layer_error.append([compute_error_margin(p, n, N_layer) for p, n in date_per_layer_p_n[layer]])
+            np.save(f'{load_folder}/{str(layer).zfill(2)}/{seed}_{number_date_per_layer_samples}_date_per_layer_p_n.npy', np.asarray(date_per_layer_p_n[layer]))
+            np.save(f'{load_folder}/{str(layer).zfill(2)}/{seed}_{number_date_per_layer_samples}_date_per_layer_error.npy', np.asarray(date_per_layer_error[layer]))
 
             # Date
             date_n = int(pd.read_csv(f'{number_of_samples_folder}/n_date.csv', index_col=0, header=None).loc[layer].values[0])
@@ -227,7 +230,7 @@ def extract_samples_p_n(total_layer_number,
                                                               random_state=random_state))).set_index('Bit')
                 for _ in tqdm(np.arange(0, number_date_samples), desc='Sampling DATE09')]
             date_p_n.append([return_p_and_n(date) for date in date_list])
-            date_error.append([compute_error_margin(p, n, N[layer]) for p, n in date_p_n[layer]])
+            date_error.append([compute_error_margin(p, n, N_layer) for p, n in date_p_n[layer]])
             np.save(f'{load_folder}/{str(layer).zfill(2)}/{seed}_{number_date_samples}_date_p_n.npy', np.asarray(date_p_n[layer]))
             np.save(f'{load_folder}/{str(layer).zfill(2)}/{seed}_{number_date_samples}_date_error.npy', np.asarray(date_error[layer]))
 
@@ -237,21 +240,5 @@ def extract_samples_p_n(total_layer_number,
             results_dataframe_complete = results_dataframe_complete.set_index('Bit')
             exhaustive_p.append(results_dataframe_complete.Critical.values)
             np.save(f'{load_folder}/{str(layer).zfill(2)}/exhaustive_p.npy',  np.asarray(exhaustive_p[layer]))
-
-    sample_list = {}
-    sample_list.update({f'Proposed sample {i}': [s[0][1], s[0][0], s[1]] for i, s in
-                        enumerate(list(zip(*[biased_sample_p_n, biased_sample_error])))})
-    sample_list.update({f'Unbiased sample {i}': [s[0][1], s[0][0], s[1]] for i, s in
-                        enumerate(list(zip(*[unbiased_sample_p_n, unbiased_sample_error])))})
-    sample_list.update({f'DATE209 per layer sample {i}': [s[0][1], s[0][0], s[1]] for i, s in
-                        enumerate(list(zip(*[date_per_layer_p_n, date_per_layer_error])))})
-    sample_list.update({f'DATE209 sample {i}': [s[0][1], s[0][0], s[1]] for i, s in
-                        enumerate(list(zip(*[date_p_n, date_error])))})
-    sample_list.update({'Exhaustive': [N[layer], exhaustive_p, 0]})
-
-    sample_df = pd.DataFrame(sample_list).transpose()
-    sample_df.columns = ['n', 'p', 'error_margin']
-    os.makedirs('csv', exist_ok=True)
-    sample_df.to_csv(f'csv/{str(layer).zfill(2)}_samples.csv')
 
     return [biased_sample_p_n, biased_sample_error], [unbiased_sample_p_n, unbiased_sample_error], [date_per_layer_p_n, date_per_layer_error], [date_p_n, date_error], exhaustive_p
