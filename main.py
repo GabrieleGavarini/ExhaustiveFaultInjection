@@ -21,7 +21,7 @@ def main(layer_start=0, layer_end=-1, network_name='resnet20'):
     torch.device(device)
     print(f'Running on device {device}')
 
-    _, _, test_loader = load_CIFAR10_datasets(test_batch_size=10, test_image_per_class=1)
+    _, _, test_loader = load_CIFAR10_datasets(test_batch_size=10, test_image_per_class=10)
 
     if network_name == 'resnet20':
         network = resnet20()
@@ -69,24 +69,6 @@ def exhaustive_fault_injection(net,
 
     cwd = os.getcwd()
     os.makedirs(f'{cwd}/fault_injection/{net_name}', exist_ok=True)
-
-    # exhaustive_fault_list = []
-    # for layer, layer_shape in enumerate(tqdm(net_layer_shape, desc='Generating exhaustive fault list')):
-    #
-    #     if len(layer_shape) == 4:
-    #         k = np.arange(layer_shape[0])
-    #         dim1 = np.arange(layer_shape[1])
-    #         dim2 = np.arange(layer_shape[2])
-    #         dim3 = np.arange(layer_shape[3])
-    #         bits = np.arange(0, 32)
-    #
-    #         exhaustive_fault_list = exhaustive_fault_list + list(itertools.product(*[[layer + layer_start], k, dim1, dim2, dim3, bits]))
-    #     else:
-    #         k = np.arange(layer_shape[0])
-    #         dim1 = np.arange(layer_shape[1])
-    #         bits = np.arange(0, 32)
-    #
-    #         exhaustive_fault_list = exhaustive_fault_list + list(itertools.product(*[[layer + layer_start], k, dim1, bits]))
 
     with torch.set_grad_enabled(False):
         net.eval()
@@ -137,6 +119,7 @@ def exhaustive_fault_injection(net,
                                         x, y_true = data
                                         x, y_true = x.to(device), y_true.to(device)
 
+                                        # y_golden = torch.topk(net(x), 1)
                                         y_pred = corrupt_net(x)
 
                                         top_5 = torch.topk(y_pred, 5)
@@ -150,7 +133,7 @@ def exhaustive_fault_injection(net,
                                                            int(top_5.indices[index][2]),
                                                            int(top_5.indices[index][3]),
                                                            int(top_5.indices[index][4]),
-                                                           int(y_true[index]),
+                                                           int(y_true[index]),          # int(y_golden.indices[index][0]),
                                                            bit,
                                                            False]
                                             writer_inj.writerow(output_list)

@@ -1,0 +1,10 @@
+Layer: the index of the layer
+Sample_index: for every layer we have sampled ten different subsets of n elements, this value identifies the subset
+*_p: the percentage of critical faults observed in the sample of size n
+*_error: the error on the percentage of critical faults, i.e. exhaustive_p in [*_p - *_error, *_p + *_error]
+*_n: the number of faults (critical and non-critical) in the sample
+
+* can be:
+- data_aware: n is computed applying date per-layer per-bit with an a-priori p
+- data_unaware: n is computed applying date per-layer per-bit without an a-priori p (i.e. p = 0.5)
+- date_per_layer: n is computed applying date per-layer without an a-priori p (i.e. p = 0.5)
