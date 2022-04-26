@@ -16,6 +16,51 @@ from models.mobilenetv2 import MobileNetV2
 from BitFlipFI import BitFlipFI
 
 
+def run_fault_injection_inference(net, pbar, device, loader, injection_index, writer_inj, f_inj, layer, layer_start, bit, k, dim1=None, dim2=None, dim3=None):
+    if dim1 is None:
+        fault = [layer + layer_start, k, bit]
+    else:
+        fault = [layer + layer_start, k, dim1, dim2, dim3, bit]
+
+    pbar.set_description(f'fault: {fault}')
+
+    pfi_model = BitFlipFI(net,
+                          fault_location=fault,
+                          batch_size=1,
+                          input_shape=[3, 32, 32],
+                          layer_types=["all"],
+                          use_cuda=(device == 'cuda'))
+
+    corrupt_net = pfi_model.declare_weight_bit_flip()
+
+    for image_index, data in enumerate(loader):
+        x, y_true = data
+        x, y_true = x.to(device), y_true.to(device)
+
+        # y_golden = torch.topk(net(x), 1)
+        y_pred = corrupt_net(x)
+
+        top_5 = torch.topk(y_pred, 5)
+
+        for index in range(0, len(top_5.indices)):
+            output_list = [injection_index,
+                           layer + layer_start,
+                           image_index * loader.batch_size + index,
+                           int(top_5.indices[index][0]),
+                           int(top_5.indices[index][1]),
+                           int(top_5.indices[index][2]),
+                           int(top_5.indices[index][3]),
+                           int(top_5.indices[index][4]),
+                           int(y_true[index]),  # int(y_golden.indices[index][0]),
+                           bit,
+                           False]
+            writer_inj.writerow(output_list)
+            f_inj.flush()
+
+    pbar.update(1)
+    injection_index += 1
+
+
 def main(layer_start=0, layer_end=-1, network_name='resnet20'):
     device = 'cuda' if torch.cuda.is_available() else 'cpu'
     torch.device(device)
@@ -40,7 +85,7 @@ def main(layer_start=0, layer_end=-1, network_name='resnet20'):
 
     network_layers = []
     for name, param in network.named_parameters():
-        if "weight" in name and ("features" in name or "conv" in name):
+        if "weight" in name and ("features" in name or "conv" in name or "linear" in name):
             network_layers.append(param)
 
     if layer_end == -1:
@@ -99,48 +144,40 @@ def exhaustive_fault_injection(net,
             for layer, layer_shape in enumerate(pbar):
                 for k in np.arange(layer_shape[0]):
                     for dim1 in np.arange(layer_shape[1]):
-                        for dim2 in np.arange(layer_shape[2]):
-                            for dim3 in np.arange(layer_shape[3]):
-                                for bit in np.arange(0, 32):
-                                    fault = [layer + layer_start, k, dim1, dim2, dim3, bit]
-
-                                    pbar.set_description(f'fault: {fault}')
-
-                                    pfi_model = BitFlipFI(net,
-                                                          fault_location=fault,
-                                                          batch_size=1,
-                                                          input_shape=[3, 32, 32],
-                                                          layer_types=["all"],
-                                                          use_cuda=(device == 'cuda'))
-
-                                    corrupt_net = pfi_model.declare_weight_bit_flip()
-
-                                    for image_index, data in enumerate(loader):
-                                        x, y_true = data
-                                        x, y_true = x.to(device), y_true.to(device)
-
-                                        # y_golden = torch.topk(net(x), 1)
-                                        y_pred = corrupt_net(x)
-
-                                        top_5 = torch.topk(y_pred, 5)
-
-                                        for index in range(0, len(top_5.indices)):
-                                            output_list = [injection_index,
-                                                           layer + layer_start,
-                                                           image_index * loader.batch_size + index,
-                                                           int(top_5.indices[index][0]),
-                                                           int(top_5.indices[index][1]),
-                                                           int(top_5.indices[index][2]),
-                                                           int(top_5.indices[index][3]),
-                                                           int(top_5.indices[index][4]),
-                                                           int(y_true[index]),          # int(y_golden.indices[index][0]),
-                                                           bit,
-                                                           False]
-                                            writer_inj.writerow(output_list)
-                                            f_inj.flush()
-
-                                    pbar.update(1)
-                                    injection_index += 1
+                        if len(layer_shape) == 2:
+                            for bit in np.arange(0, 32):
+                                run_fault_injection_inference(net=net,
+                                                              pbar=pbar,
+                                                              device=device,
+                                                              loader=loader,
+                                                              injection_index=injection_index,
+                                                              writer_inj=writer_inj,
+                                                              f_inj=f_inj,
+                                                              layer=layer,
+                                                              layer_start=layer_start,
+                                                              bit=bit,
+                                                              k=k,
+                                                              dim1=dim1,
+                                                              dim2=[],
+                                                              dim3=[])
+                        else:
+                            for dim2 in np.arange(layer_shape[2]):
+                                for dim3 in np.arange(layer_shape[3]):
+                                    for bit in np.arange(0, 32):
+                                        run_fault_injection_inference(net=net,
+                                                                      pbar=pbar,
+                                                                      device=device,
+                                                                      loader=loader,
+                                                                      injection_index=injection_index,
+                                                                      writer_inj=writer_inj,
+                                                                      f_inj=f_inj,
+                                                                      layer=layer,
+                                                                      layer_start=layer_start,
+                                                                      bit=bit,
+                                                                      k=k,
+                                                                      dim1=dim1,
+                                                                      dim2=dim2,
+                                                                      dim3=dim3)
 
 
 if __name__ == '__main__':
