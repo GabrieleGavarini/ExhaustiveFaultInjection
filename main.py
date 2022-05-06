@@ -16,13 +16,17 @@ from models.mobilenetv2 import MobileNetV2
 from BitFlipFI import BitFlipFI
 
 
-def run_golden_inference(loader, device, net, layer_start, layer_end):
+def run_golden_inference(loader, device, net, layer_start, layer_end, net_layer_shape):
     correct = 0
     total = 0
 
     folder_name = './golden/mobilenet-v2'
     os.makedirs(folder_name, exist_ok=True)
-    filename = f'{folder_name}/{layer_start}-{layer_end}_golden.csv'
+
+    if layer_end == -1:
+        filename = f'{folder_name}/{layer_start}-{len(net_layer_shape) + layer_start}_golden.csv'
+    else:
+        filename = f'{folder_name}/{layer_start}-{layer_end}_golden.csv'
 
     with open(filename, 'w', newline='') as f_inj:
         writer_inj = csv.writer(f_inj)
@@ -178,7 +182,8 @@ def main(layer_start=0,
                          device=device,
                          net=network,
                          layer_start=layer_start,
-                         layer_end=layer_end)
+                         layer_end=layer_end,
+                         net_layer_shape=network_layers_shape)
     torch.cuda.empty_cache()
 
     exhaustive_fault_injection(net=network,
