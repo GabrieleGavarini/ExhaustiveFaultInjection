@@ -82,7 +82,7 @@ def run_fault_injection_inference(net, pbar, device, loader, injection_index, wr
 
     pfi_model = BitFlipFI(net,
                           fault_location=fault,
-                          batch_size=loader.batch_size,
+                          batch_size=1,
                           input_shape=[3, 32, 32],
                           layer_types=["all"],
                           use_cuda=(device == 'cuda'))
