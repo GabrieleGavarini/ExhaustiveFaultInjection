@@ -103,7 +103,8 @@ def run_fault_injection_inference(net, pbar, device, loader, injection_index, wr
         total += len(y_true)
         accuracy = 100 * correct / total
 
-        pbar.set_postfix({'Accuracy': accuracy})
+        memory_reserved = torch.cuda.memory_reserved(0) / (1024*1024*1024)
+        pbar.set_postfix({'Accuracy': accuracy, 'Reserved GB': memory_reserved})
 
         for index in range(0, len(top_5.indices)):
             output_list = [injection_index,
@@ -124,10 +125,24 @@ def run_fault_injection_inference(net, pbar, device, loader, injection_index, wr
     injection_index += 1
 
 
-def main(layer_start=0, layer_end=-1, network_name='resnet20', test_image_per_class=1, avoid_mantissa=False):
+def main(layer_start=0,
+         layer_end=-1,
+         network_name='resnet20',
+         test_image_per_class=1,
+         avoid_mantissa=False,
+         target_memory_GB=None):
+
     device = 'cuda' if torch.cuda.is_available() else 'cpu'
     torch.device(device)
     print(f'Running on device {device}')
+
+    # Limit GPU memory
+    if (device == 'cuda') and (target_memory_GB is not None):
+        total_memory = torch.cuda.get_device_properties(0).total_memory
+        target_memory = target_memory_GB * (1024*1024*1024)
+        memory_fraction = target_memory / total_memory
+        torch.cuda.set_per_process_memory_fraction(memory_fraction, device=None)
+
 
     _, _, test_loader = load_CIFAR10_datasets(test_batch_size=10, test_image_per_class=test_image_per_class)
 
@@ -265,6 +280,8 @@ if __name__ == '__main__':
                         help='How many image per class for each inference run')
     parser.add_argument('--avoid_mantissa', type=bool, default='False',
                         help='Whether or not to inject faults in the mantissa')
+    parser.add_argument('--target_memory_GB', type=float, default=1,
+                        help='How many GigaByte of GPU memory the process is allowed to use')
 
     args = parser.parse_args()
 
@@ -273,10 +290,12 @@ if __name__ == '__main__':
     _network_name = args.network
     _avoid_mantissa = args.avoid_mantissa
     _image_per_class = args.image_per_class
+    _target_memory_GB = args.target_memory_GB
 
     print(f'Running fault injection on {_network_name}')
     main(layer_start=_layer_start,
          layer_end=_layer_end,
          network_name=_network_name,
          test_image_per_class=_image_per_class,
-         avoid_mantissa=_avoid_mantissa)
+         avoid_mantissa=_avoid_mantissa,
+         target_memory_GB=_target_memory_GB)
