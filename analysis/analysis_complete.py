@@ -3,20 +3,20 @@ from graph import Plotter
 import numpy as np
 import pandas as pd
 
-total_layer_number = 20
+total_layer_number = 52
 number_biased_samples = 10
 number_unbiased_samples = 10
 number_date_per_layer_samples = 10
 number_date_samples = 10
 
 biased_sample, unbiased_sample, date_per_layer,  date, exhaustive_p = extract_samples_p_n(total_layer_number=total_layer_number,
-                                                                                          net_name='resnet20',
+                                                                                          net_name='mobilenet-v2',
                                                                                           number_biased_samples=number_biased_samples,
                                                                                           number_unbiased_samples=number_unbiased_samples,
                                                                                           number_date_per_layer_samples=number_date_per_layer_samples,
                                                                                           number_date_samples=number_date_samples,
                                                                                           seed=51195,
-                                                                                          load_if_exist=True)
+                                                                                          load_if_exist=False)
 
 entry_list = []
 for i in np.arange(0, total_layer_number):

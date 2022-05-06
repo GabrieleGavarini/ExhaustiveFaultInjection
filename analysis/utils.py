@@ -7,6 +7,7 @@ import os
 
 from tqdm import tqdm
 
+
 def poisson_variance(p, n):
     return n * p
 
@@ -41,6 +42,97 @@ def compute_error_margin(p, n, N=None, t=2.58, finite_population=True):
 
     # The margin of error
     return t * math.sqrt(sample_variance / n)
+
+
+def _create_df(net_name, chunksize, number_of_chunks, layer=None):
+    """
+    Create a dataframe with all the bit-flip faults and their effect
+    :param net_name: The name of the network
+    :param chunksize: The size of the chunks to load
+    :param number_of_chunks: Then umber of chunks
+    :param layer: Default None. If specified, load only the faults for the layer specified
+    :return: dataframe containing all the bit-flip faults and their effect
+    """
+
+    golden_filename = f'../golden/{net_name}/golden.csv'
+    golden_df = pd.read_csv(golden_filename)
+
+    image_merge_folder = f'../fault_injection/resnet20/'
+
+    df_list = []
+    with tqdm(total=number_of_chunks) as pbar:
+        for filename in os.listdir(image_merge_folder)[-3:-2]:
+            for chunk in pd.read_csv(f'{image_merge_folder}/{filename}', chunksize=chunksize):
+                pbar.set_description(f'Loading {filename}')
+
+                if layer is not None:
+                    chunk = chunk[chunk.Layer == layer]
+
+                chunk = chunk.dropna()
+                if 'Golden' in chunk.columns:
+                    chunk = chunk.drop('Golden', axis=1).merge(golden_df[['ImageIndex', 'Golden']], how='left',
+                                                               on='ImageIndex')
+                chunk = chunk[['Bit', 'Layer', 'Top_1', 'Golden']]
+                df_list.append(chunk)
+
+                stuck_at_chunk = copy.deepcopy(chunk)
+                stuck_at_chunk.Top_1 = stuck_at_chunk.Golden
+                df_list.append(stuck_at_chunk)
+
+                pbar.update(1)
+
+    image_df = pd.concat(df_list, ignore_index=True)
+
+    return image_df
+
+def _load_intermediate_results(load_folder, layer, seed, number_biased_samples, number_unbiased_samples, number_date_per_layer_samples, number_date_samples):
+
+    biased_sample_p_n = np.load(f'{load_folder}/{str(layer).zfill(2)}/{seed}_{number_biased_samples}_biased_sample_p_n.npy')
+    biased_sample_error = np.load(f'{load_folder}/{str(layer).zfill(2)}/{seed}_{number_biased_samples}_biased_sample_error.npy')
+
+    unbiased_sample_p_n = np.load(f'{load_folder}/{str(layer).zfill(2)}/{seed}_{number_unbiased_samples}_unbiased_sample_p_n.npy')
+    unbiased_sample_error = np.load(f'{load_folder}/{str(layer).zfill(2)}/{seed}_{number_unbiased_samples}_unbiased_sample_error.npy')
+
+    date_per_layer_p_n = np.load(f'{load_folder}/{str(layer).zfill(2)}/{seed}_{number_date_per_layer_samples}_date_per_layer_p_n.npy')
+    date_per_layer_error = np.load(f'{load_folder}/{str(layer).zfill(2)}/{seed}_{number_date_per_layer_samples}_date_per_layer_error.npy')
+
+    date_p_n = np.load(f'{load_folder}/{str(layer).zfill(2)}/{seed}_{number_date_samples}_date_p_n.npy')
+    date_error = np.load(f'{load_folder}/{str(layer).zfill(2)}/{seed}_{number_date_samples}_date_error.npy')
+
+    exhaustive_p = np.load(f'{load_folder}/{str(layer).zfill(2)}/exhaustive_p.npy')
+
+    intermediate_results = {
+        'biased_sample_p_n': biased_sample_p_n,
+        'biased_sample_error': biased_sample_error,
+        'unbiased_sample_p_n': unbiased_sample_p_n,
+        'unbiased_sample_error': unbiased_sample_error,
+        'date_per_layer_p_n': date_per_layer_p_n,
+        'date_per_layer_error': date_per_layer_error,
+        'date_p_n': date_p_n,
+        'date_error': date_error,
+        'exhaustive_p': exhaustive_p
+    }
+
+    return intermediate_results
+
+
+def return_critical_percentage_by_bit(image_df):
+    total_critical = len(image_df[image_df.Top_1 != image_df.Golden])
+
+    result_dicts = []
+    for bit in np.arange(0, 32):
+        complete_df_bit = copy.deepcopy(image_df[image_df.Bit == bit])
+
+        if total_critical == 0:
+            critical = 0
+        else:
+            critical = np.sum(complete_df_bit.Top_1 != complete_df_bit.Golden) / total_critical
+        masked = 1 - critical
+
+        result_dicts.append({'Bit': bit,
+                             'Masked': masked * 100,
+                             'Critical': critical * 100})
+    return result_dicts
 
 
 def return_complete_df(image_df):
@@ -87,6 +179,74 @@ def return_p_and_n(df, convert_p_to_probability=True):
     return p, n
 
 
+def extract_sample_p_n_bit(net_name,
+                           layer_number,
+                           number_biased_samples,
+                           number_unbiased_samples,
+                           number_date_per_layer_samples,
+                           number_date_samples,
+                           number_of_samples_folder='../fault_injection/number_of_samples',
+                           load_if_exist=True,
+                           load_folder='intermediate_results/bit',
+                           seed=1234):
+
+    os.makedirs(f'{load_folder}/{str(layer_number).zfill(2)}', exist_ok=True)
+
+    try:
+        intermediate_results = _load_intermediate_results(load_folder,
+                                                          layer_number,
+                                                          seed,
+                                                          number_biased_samples,
+                                                          number_unbiased_samples,
+                                                          number_date_per_layer_samples,
+                                                          number_date_samples)
+    except FileNotFoundError:
+
+        intermediate_results = {}
+        random_state = np.random.default_rng(seed=seed).bit_generator
+
+        # load N from file
+        number_of_samples_folder = f'{number_of_samples_folder}/{net_name}'
+        N = pd.read_csv(f'{number_of_samples_folder}/N_layers.csv', index_col=0)['N']
+
+        # Load dataframe of all faults
+        number_of_chunks = 1000
+        chunksize = int((100 * N.values.sum() / 2) / number_of_chunks)
+        image_df = _create_df(net_name,
+                              number_of_chunks=number_of_chunks,
+                              chunksize=chunksize,
+                              layer=layer_number)
+
+        # Data-aware
+        biased_n_by_bit = pd.read_csv(f'{number_of_samples_folder}/n_tuning_scenario_1.csv', index_col=0).loc[layer_number].to_list()
+        biased_n_by_bit.reverse()
+
+        biased_sample_list = [
+            pd.DataFrame(return_critical_percentage_by_bit(create_sample(image_df,
+                                                                         n=biased_n_by_bit,
+                                                                         random_state=random_state))).set_index('Bit')
+            for _ in tqdm(np.arange(0, number_biased_samples), desc='Sampling biased')]
+        intermediate_results['biased_sample_p'] = biased_sample_list
+
+        # Date per layer
+        date_per_layer_n = int(
+            pd.read_csv(f'{number_of_samples_folder}/n_date_per_layer.csv', index_col=0, header=None).loc[layer_number].values[0])
+
+        date_per_layer_list = [
+            pd.DataFrame(return_critical_percentage_by_bit(create_sample(image_df,
+                                                                         n=date_per_layer_n,
+                                                                         random_state=random_state))).set_index('Bit')
+            for _ in tqdm(np.arange(0, number_date_per_layer_samples), desc='Sampling DATE09 per layer')]
+        intermediate_results['date_per_layer_p'] = date_per_layer_list
+
+        #Exhaustive
+        results_dataframe_complete = pd.DataFrame(return_critical_percentage_by_bit(image_df))
+        results_dataframe_complete = results_dataframe_complete.set_index('Bit')
+        intermediate_results['exhaustive_p'] = results_dataframe_complete
+
+    return intermediate_results
+
+
 def extract_samples_p_n(total_layer_number,
                         net_name,
                         number_biased_samples,
@@ -121,19 +281,27 @@ def extract_samples_p_n(total_layer_number,
             raise FileNotFoundError
 
         for layer in np.arange(0, total_layer_number):
-            biased_sample_p_n.append(np.load(f'{load_folder}/{str(layer).zfill(2)}/{seed}_{number_biased_samples}_biased_sample_p_n.npy'))
-            biased_sample_error.append(np.load(f'{load_folder}/{str(layer).zfill(2)}/{seed}_{number_biased_samples}_biased_sample_error.npy'))
+            intermediate_results = _load_intermediate_results(load_folder,
+                                                              layer,
+                                                              seed,
+                                                              number_biased_samples,
+                                                              number_unbiased_samples,
+                                                              number_date_per_layer_samples,
+                                                              number_date_samples)
 
-            unbiased_sample_p_n.append(np.load(f'{load_folder}/{str(layer).zfill(2)}/{seed}_{number_unbiased_samples}_unbiased_sample_p_n.npy'))
-            unbiased_sample_error.append(np.load(f'{load_folder}/{str(layer).zfill(2)}/{seed}_{number_unbiased_samples}_unbiased_sample_error.npy'))
+            biased_sample_p_n.append(intermediate_results['biased_sample_p_n'])
+            biased_sample_error.append(intermediate_results['biased_sample_error'])
 
-            date_per_layer_p_n.append(np.load(f'{load_folder}/{str(layer).zfill(2)}/{seed}_{number_date_per_layer_samples}_date_per_layer_p_n.npy'))
-            date_per_layer_error.append(np.load(f'{load_folder}/{str(layer).zfill(2)}/{seed}_{number_date_per_layer_samples}_date_per_layer_error.npy'))
+            unbiased_sample_p_n.append(intermediate_results['unbiased_sample_p_n'])
+            unbiased_sample_error.append(intermediate_results['unbiased_sample_error'])
 
-            date_p_n.append(np.load(f'{load_folder}/{str(layer).zfill(2)}/{seed}_{number_date_samples}_date_p_n.npy'))
-            date_error.append(np.load(f'{load_folder}/{str(layer).zfill(2)}/{seed}_{number_date_samples}_date_error.npy'))
+            date_per_layer_p_n.append(intermediate_results['date_per_layer_p_n'])
+            date_per_layer_error.append(intermediate_results['date_per_layer_error'])
 
-            exhaustive_p.append(np.load(f'{load_folder}/{str(layer).zfill(2)}/exhaustive_p.npy'))
+            date_p_n.append(intermediate_results['date_p_n'])
+            date_error.append(intermediate_results['date_error'])
+
+            exhaustive_p.append(intermediate_results['exhaustive_p'])
 
         print('Loaded from saved files...')
 
@@ -142,36 +310,13 @@ def extract_samples_p_n(total_layer_number,
         print(f'File {not_found.filename} not found, computing results...')
 
         number_of_chunks = 1000
-        chunksize = int((100 * N.values.sum()/2) / number_of_chunks)
+        chunksize = int((100 * N.values.sum() / 2) / number_of_chunks)
 
-        # ---- BEGIN DATAFRAME CREATION ---- #
-        golden_filename = f'../golden/{net_name}/golden.csv'
-        golden_df = pd.read_csv(golden_filename)
-
-        image_merge_folder = f'../fault_injection/resnet20/'
-
-        df_list = []
-        with tqdm(total=number_of_chunks) as pbar:
-            for filename in os.listdir(image_merge_folder):
-                for chunk in pd.read_csv(f'{image_merge_folder}/{filename}', chunksize=chunksize):
-                    pbar.set_description(f'Loading {filename}')
-                    chunk = chunk.dropna()
-                    if 'Golden' in chunk.columns:
-                        chunk = chunk.drop('Golden', axis=1).merge(golden_df[['ImageIndex', 'Golden']], how='left', on='ImageIndex')
-                    chunk = chunk[['Bit', 'Layer', 'Top_1', 'Golden']]
-                    df_list.append(chunk)
-
-                    stuck_at_chunk = copy.deepcopy(chunk)
-                    stuck_at_chunk.Top_1 = stuck_at_chunk.Golden
-                    df_list.append(stuck_at_chunk)
-
-                    pbar.update(1)
-
-        image_df = pd.concat(df_list, ignore_index=True)
+        image_df = _create_df(net_name,
+                              number_of_chunks=number_of_chunks,
+                              chunksize=chunksize)
 
         random_state = np.random.default_rng(seed=seed).bit_generator
-
-        # ---- END DATAFRAME CREATION ---- #
 
         for layer in np.arange(0, total_layer_number):
             print(f'#### Layer {layer} ####')
