@@ -62,6 +62,8 @@ def load_CIFAR10_datasets(train_batch_size=32, train_split=0.8, test_batch_size=
 def load_from_dict(network, device, path, function=None):
     if '.th' in path:
         state_dict = torch.load(path, map_location=device)['state_dict']
+    elif '.pth' in path:
+        state_dict = torch.load(path, map_location=device)['net']
     else:
         state_dict = torch.load(path, map_location=device)
 
