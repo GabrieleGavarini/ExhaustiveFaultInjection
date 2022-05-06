@@ -79,13 +79,12 @@ class Plotter:
                    layer,
                    mode='complete',
                    number_biased_samples=10,
-                   number_per_layer_samples=10):
+                   number_per_layer_samples=10,
+                   critical_top=10):
 
         total_number_of_samples = number_biased_samples + number_per_layer_samples
 
         fig, ax1 = plt.subplots(1, figsize=(12, 6))
-
-        critical_top = 10
 
         xticks = np.arange(0, total_number_of_samples)
         xticks_labels = [f'S{i}' for i in np.arange(1, number_biased_samples + 1)] + [f'S{i + number_biased_samples}' for i in np.arange(1, number_per_layer_samples + 1)]
