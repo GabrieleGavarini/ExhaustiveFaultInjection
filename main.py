@@ -69,6 +69,8 @@ def run_golden_inference(loader, device, net, layer_start, layer_end):
                 writer_inj.writerow(output_list)
                 f_inj.flush()
 
+            del x, y_true, y_pred, top_5, pred
+
 
 def run_fault_injection_inference(net, pbar, device, loader, injection_index, writer_inj, f_inj, layer, layer_start, bit, k, dim1=None, dim2=None, dim3=None):
     if dim1 is None:
@@ -80,13 +82,12 @@ def run_fault_injection_inference(net, pbar, device, loader, injection_index, wr
 
     pfi_model = BitFlipFI(net,
                           fault_location=fault,
-                          batch_size=1,
+                          batch_size=loader.batch_size,
                           input_shape=[3, 32, 32],
                           layer_types=["all"],
                           use_cuda=(device == 'cuda'))
 
     corrupt_net = pfi_model.declare_weight_bit_flip()
-
     correct = 0
     total = 0
 
@@ -130,7 +131,8 @@ def main(layer_start=0,
          network_name='resnet20',
          test_image_per_class=1,
          avoid_mantissa=False,
-         target_memory_GB=None):
+         target_memory_GB=None,
+         batch_size=10):
 
     device = 'cuda' if torch.cuda.is_available() else 'cpu'
     torch.device(device)
@@ -143,8 +145,7 @@ def main(layer_start=0,
         memory_fraction = target_memory / total_memory
         torch.cuda.set_per_process_memory_fraction(memory_fraction, device=None)
 
-
-    _, _, test_loader = load_CIFAR10_datasets(test_batch_size=10, test_image_per_class=test_image_per_class)
+    _, _, test_loader = load_CIFAR10_datasets(test_batch_size=batch_size, test_image_per_class=test_image_per_class)
 
     if network_name == 'resnet20':
         network = resnet20()
@@ -178,6 +179,7 @@ def main(layer_start=0,
                          net=network,
                          layer_start=layer_start,
                          layer_end=layer_end)
+    torch.cuda.empty_cache()
 
     exhaustive_fault_injection(net=network,
                                net_name=network_name,
@@ -248,6 +250,7 @@ def exhaustive_fault_injection(net,
                                                               dim1=dim1,
                                                               dim2=[],
                                                               dim3=[])
+                                torch.cuda.empty_cache()
                         else:
                             for dim2 in np.arange(layer_shape[2]):
                                 for dim3 in np.arange(layer_shape[3]):
@@ -266,6 +269,7 @@ def exhaustive_fault_injection(net,
                                                                       dim1=dim1,
                                                                       dim2=dim2,
                                                                       dim3=dim3)
+                                        torch.cuda.empty_cache()
 
 
 if __name__ == '__main__':
@@ -282,6 +286,8 @@ if __name__ == '__main__':
                         help='Whether or not to inject faults in the mantissa')
     parser.add_argument('--target_memory_GB', type=float, default=1,
                         help='How many GigaByte of GPU memory the process is allowed to use')
+    parser.add_argument('--batch-size', type=int, default=10,
+                        help='Batch size for the inference')
 
     args = parser.parse_args()
 
@@ -291,6 +297,7 @@ if __name__ == '__main__':
     _avoid_mantissa = args.avoid_mantissa
     _image_per_class = args.image_per_class
     _target_memory_GB = args.target_memory_GB
+    _batch_size = args.batch_size
 
     print(f'Running fault injection on {_network_name}')
     main(layer_start=_layer_start,
@@ -298,4 +305,5 @@ if __name__ == '__main__':
          network_name=_network_name,
          test_image_per_class=_image_per_class,
          avoid_mantissa=_avoid_mantissa,
-         target_memory_GB=_target_memory_GB)
+         target_memory_GB=_target_memory_GB,
+         batch_size=_batch_size)
