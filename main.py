@@ -235,7 +235,7 @@ def exhaustive_fault_injection(net,
             bit_start = 23 if avoid_mantissa else 0
 
             injection_index = 0
-            total = np.sum(np.array([np.prod(layer_shape) for layer_shape in net_layer_shape])) * 32
+            total = np.sum(np.array([np.prod(layer_shape) for layer_shape in net_layer_shape])) * (32 - bit_start)
             pbar = tqdm(net_layer_shape, total=total)
             for layer, layer_shape in enumerate(pbar):
                 for k in np.arange(layer_shape[0]):
