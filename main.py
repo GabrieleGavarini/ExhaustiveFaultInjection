@@ -139,7 +139,7 @@ def main(layer_start=0,
          batch_size=10,
          use_cuda=True):
 
-    device = 'cpu' if (~use_cuda) or ~(torch.cuda.is_available()) else 'cuda'
+    device = 'cpu' if (not use_cuda) or (not torch.cuda.is_available()) else 'cuda'
     torch.device(device)
     print(f'Running on device {device}')
 
