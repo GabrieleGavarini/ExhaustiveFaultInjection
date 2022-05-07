@@ -143,6 +143,9 @@ def main(layer_start=0,
     torch.device(device)
     print(f'Running on device {device}')
 
+    if avoid_mantissa:
+        print('Avoiding injection fault on the mantissa')
+
     # Limit GPU memory
     if (device == 'cuda') and (target_memory_GB is not None):
         total_memory = torch.cuda.get_device_properties(0).total_memory
@@ -288,13 +291,13 @@ if __name__ == '__main__':
                         choices=['resnet20', 'densenet121', 'mobilenet-v2'])
     parser.add_argument('--image_per_class', type=int, default=1,
                         help='How many image per class for each inference run')
-    parser.add_argument('--avoid_mantissa', type=bool, default='False',
+    parser.add_argument('--avoid_mantissa', action='store_true', default=False,
                         help='Whether or not to inject faults in the mantissa')
     parser.add_argument('--target_memory_GB', type=float, default=1,
                         help='How many GigaByte of GPU memory the process is allowed to use')
     parser.add_argument('--batch-size', type=int, default=10,
                         help='Batch size for the inference')
-    parser.add_argument('--use-cuda', type=bool, default=True,
+    parser.add_argument('--use-cuda', action='store_true', default=False,
                         help='Whether to use cuda or not if they are available')
 
     args = parser.parse_args()
