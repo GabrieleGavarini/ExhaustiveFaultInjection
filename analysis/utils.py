@@ -54,14 +54,15 @@ def _create_df(net_name, chunksize, number_of_chunks, layer=None):
     :return: dataframe containing all the bit-flip faults and their effect
     """
 
-    golden_filename = f'../golden/{net_name}/golden.csv'
-    golden_df = pd.read_csv(golden_filename)
-
     image_merge_folder = f'../fault_injection/{net_name}/'
 
     df_list = []
     with tqdm(total=number_of_chunks) as pbar:
         for filename in os.listdir(image_merge_folder):
+
+            golden_filename = f'../golden/{net_name}/{filename.replace("exhaustive_results", "golden")}'
+            golden_df = pd.read_csv(golden_filename)
+
             for chunk in pd.read_csv(f'{image_merge_folder}/{filename}', chunksize=chunksize):
                 pbar.set_description(f'Loading {filename}')
 

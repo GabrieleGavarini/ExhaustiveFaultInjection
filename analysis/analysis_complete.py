@@ -4,10 +4,13 @@ import numpy as np
 import pandas as pd
 
 
-total_layer_number = 52
+total_layer_number = 54
+
 layer_start = 0
-layer_end = 7
-avoid_mantissa=True
+layer_end = total_layer_number
+
+avoid_mantissa = True
+load_if_exist = True
 
 number_biased_samples = 10
 number_unbiased_samples = 10
@@ -24,7 +27,7 @@ biased_sample, unbiased_sample, date_per_layer,  date, exhaustive_p = extract_sa
                                                                                           number_date_per_layer_samples=number_date_per_layer_samples,
                                                                                           number_date_samples=number_date_samples,
                                                                                           seed=51195,
-                                                                                          load_if_exist=True,
+                                                                                          load_if_exist=load_if_exist,
                                                                                           avoid_mantissa=avoid_mantissa)
 
 entry_list = []
