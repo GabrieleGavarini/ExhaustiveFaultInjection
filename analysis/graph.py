@@ -77,6 +77,7 @@ class Plotter:
                    date_per_layer_error,
                    exhaustive_p,
                    layer,
+                   net_name,
                    mode='complete',
                    number_biased_samples=10,
                    number_per_layer_samples=10,
@@ -170,5 +171,5 @@ class Plotter:
             ax2.legend(loc='upper left')
 
         fig.show()
-        os.makedirs('plot/DATEvsProposed', exist_ok=True)
-        fig.savefig(f'plot/DATEvsProposed/{str(layer).zfill(2)}_{mode}_critical.png')
+        os.makedirs(f'plot/DATEvsProposed/{net_name}', exist_ok=True)
+        fig.savefig(f'plot/DATEvsProposed/{net_name}/{str(layer).zfill(2)}_{mode}_critical.png')

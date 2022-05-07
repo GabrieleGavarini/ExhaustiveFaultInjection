@@ -7,7 +7,7 @@ import pandas as pd
 total_layer_number = 54
 
 layer_start = 0
-layer_end = total_layer_number
+layer_end = 8
 
 avoid_mantissa = True
 load_if_exist = True
@@ -61,7 +61,8 @@ plotter = Plotter()
 #                     exhaustive_p=np.mean(exhaustive_p, axis=1))
 
 for layer in np.arange(layer_start, layer_end):
-    plotter.plot_graph(biased_sample_p_n=biased_sample[0][layer],
+    plotter.plot_graph(net_name=net_name,
+                       biased_sample_p_n=biased_sample[0][layer],
                        biased_sample_error=biased_sample[1][layer],
                        date_per_layer_p_n=date_per_layer[0][layer],
                        date_per_layer_error=date_per_layer[1][layer],
