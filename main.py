@@ -136,9 +136,10 @@ def main(layer_start=0,
          test_image_per_class=1,
          avoid_mantissa=False,
          target_memory_GB=None,
-         batch_size=10):
+         batch_size=10,
+         use_cuda=True):
 
-    device = 'cuda' if torch.cuda.is_available() else 'cpu'
+    device = 'cpu' if (~use_cuda) or ~(torch.cuda.is_available()) else 'cuda'
     torch.device(device)
     print(f'Running on device {device}')
 
@@ -293,6 +294,8 @@ if __name__ == '__main__':
                         help='How many GigaByte of GPU memory the process is allowed to use')
     parser.add_argument('--batch-size', type=int, default=10,
                         help='Batch size for the inference')
+    parser.add_argument('--use-cuda', type=bool, default=True,
+                        help='Whether to use cuda or not if they are available')
 
     args = parser.parse_args()
 
@@ -303,6 +306,7 @@ if __name__ == '__main__':
     _image_per_class = args.image_per_class
     _target_memory_GB = args.target_memory_GB
     _batch_size = args.batch_size
+    _use_cuda = args.use_cuda
 
     print(f'Running fault injection on {_network_name}')
     main(layer_start=_layer_start,
@@ -311,4 +315,5 @@ if __name__ == '__main__':
          test_image_per_class=_image_per_class,
          avoid_mantissa=_avoid_mantissa,
          target_memory_GB=_target_memory_GB,
-         batch_size=_batch_size)
+         batch_size=_batch_size,
+         use_cuda=_use_cuda)
