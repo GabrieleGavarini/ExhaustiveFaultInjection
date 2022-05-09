@@ -7,8 +7,7 @@ import pandas as pd
 total_layer_number = 54
 
 layer_start = 0
-layer_end = 8
-
+layer_end = 29
 avoid_mantissa = True
 load_if_exist = True
 
@@ -54,11 +53,6 @@ result_df = pd.DataFrame(entry_list)
 result_df.to_csv(f'csv/{net_name}_complete_p_n.csv')
 
 plotter = Plotter()
-# plotter.plot_layers(biased_sample_p_n=biased_sample[0],
-#                     unbiased_sample_p_n=unbiased_sample[0],
-#                     date_per_layer_p_n=date_per_layer[0],
-#                     date_p_n=date[0],
-#                     exhaustive_p=np.mean(exhaustive_p, axis=1))
 
 for layer in np.arange(layer_start, layer_end):
     plotter.plot_graph(net_name=net_name,

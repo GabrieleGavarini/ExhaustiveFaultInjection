@@ -57,16 +57,16 @@ class Plotter:
                     date_p_n,
                     exhaustive_p):
 
-        self._plot(sample_p=[[p * 100 for p, n in layer] for layer in biased_sample_p_n],
+        self._plot(sample_p=[[p * 100 for p, n in layer] for layer in biased_sample_p_n.values()],
                    exhaustive_p=exhaustive_p,
                    sample_name='data_aware')
-        self._plot(sample_p=[[p * 100 for p, n in layer] for layer in unbiased_sample_p_n],
+        self._plot(sample_p=[[p * 100 for p, n in layer] for layer in unbiased_sample_p_n.values()],
                    exhaustive_p=exhaustive_p,
                    sample_name='data_unaware')
-        self._plot(sample_p=[[p * 100 for p, n in layer] for layer in date_per_layer_p_n],
+        self._plot(sample_p=[[p * 100 for p, n in layer] for layer in date_per_layer_p_n.values()],
                    exhaustive_p=exhaustive_p,
                    sample_name='date_per_layer')
-        self._plot(sample_p=[[p * 100 for p, n in layer] for layer in date_p_n],
+        self._plot(sample_p=[[p * 100 for p, n in layer] for layer in date_p_n.values()],
                    exhaustive_p=exhaustive_p,
                    sample_name='date')
 
