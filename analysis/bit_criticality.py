@@ -1,5 +1,6 @@
-import pandas
+import os
 
+from models.mobilenetv2 import MobileNetV2
 from models.resnet import resnet20
 from models.utils import load_from_dict
 import struct
@@ -22,8 +23,16 @@ def bin_to_float(binary):
 def binary_to_count(binary_number):
     return [int(bit) for bit in binary_number]
 
-network = resnet20()
-network_path = '../models/pretrained_models/resnet20-trained.th'
+
+network_name = 'mobilenet'
+
+if network_name == 'resnet':
+    network = resnet20()
+    network_path = '../models/pretrained_models/resnet20-trained.th'
+elif network_name == 'mobilenet':
+    network = MobileNetV2()
+    network_path = '../models/pretrained_models/mobilenet.pth'
+
 load_from_dict(network=network,
                device='cuda',
                path=network_path)
@@ -36,7 +45,7 @@ weights_binary_df = pd.DataFrame(weights_binary)
 
 distance_list = []
 
-for bit_index in np.arange(0, 32):
+for bit_index in np.arange(23, 32):
     bit_at_0_average_distance = 0
     bit_at_0 = weights_binary_df[weights_binary_df.iloc[:, bit_index] == 0]
 
@@ -78,4 +87,6 @@ for bit_index in np.arange(0, 32):
                           'Bit_1_Distance': bit_at_1_average_distance})
 
 distance_df = pd.DataFrame(distance_list)
-distance_df.to_csv('bit_distribution/criticality.csv')
+folder_path = f'bit_distribution/{network_name}'
+os.makedirs(folder_path, exist_ok=True)
+distance_df.to_csv(f'{folder_path}/criticality.csv')
