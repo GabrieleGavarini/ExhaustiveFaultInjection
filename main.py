@@ -127,7 +127,6 @@ def run_fault_injection_inference(net, pbar, device, loader, injection_index, wr
             f_inj.flush()
 
     pbar.update(1)
-    injection_index += 1
 
 
 def main(layer_start=0,
@@ -259,6 +258,7 @@ def exhaustive_fault_injection(net,
                                                               dim1=dim1,
                                                               dim2=[],
                                                               dim3=[])
+                                injection_index += 1
                                 torch.cuda.empty_cache()
                         else:
                             for dim2 in np.arange(layer_shape[2]):
@@ -278,6 +278,7 @@ def exhaustive_fault_injection(net,
                                                                       dim1=dim1,
                                                                       dim2=dim2,
                                                                       dim3=dim3)
+                                        injection_index += 1
                                         torch.cuda.empty_cache()
 
 

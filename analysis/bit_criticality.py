@@ -24,6 +24,9 @@ def binary_to_count(binary_number):
     return [int(bit) for bit in binary_number]
 
 
+mode = 'distance'
+# mode = 'relative_distance'
+
 network_name = 'mobilenet'
 
 if network_name == 'resnet':
@@ -43,7 +46,7 @@ weights_binary = [np.flip([binary_to_count(float_to_bin(layer_weight)) for layer
 weights_binary = np.concatenate(weights_binary)
 weights_binary_df = pd.DataFrame(weights_binary)
 
-distance_list = []
+distance_list = {}
 
 for bit_index in np.arange(23, 32):
     bit_at_0_average_distance = 0
@@ -60,7 +63,7 @@ for bit_index in np.arange(23, 32):
         faulty_bit_str = ''.join(np.flip(faulty_bit_list))
         faulty_weight = bin_to_float(faulty_bit_str)
 
-        distance = np.abs(weight - faulty_weight)
+        distance = np.abs(weight - faulty_weight) if mode == 'distance' else np.abs(faulty_weight / weight)
         bit_at_0_average_distance = ((bit_at_0_average_distance * binary_index) + distance) / (binary_index + 1)
         pbar.set_postfix({'Distance': bit_at_0_average_distance})
 
@@ -79,14 +82,14 @@ for bit_index in np.arange(23, 32):
         faulty_bit_str = ''.join(np.flip(faulty_bit_list))
         faulty_weight = bin_to_float(faulty_bit_str)
 
-        distance = np.abs(weight - faulty_weight)
+        distance = np.abs(weight - faulty_weight) if mode == 'distance' else np.abs(faulty_weight / weight)
         bit_at_1_average_distance = ((bit_at_1_average_distance * binary_index) + distance) / (binary_index + 1)
         pbar.set_postfix({'Distance': bit_at_1_average_distance})
 
-    distance_list.append({'Bit_0_Distance': bit_at_0_average_distance,
-                          'Bit_1_Distance': bit_at_1_average_distance})
+    distance_list[bit_index] = {'Bit_0_Distance': bit_at_0_average_distance,
+                                'Bit_1_Distance': bit_at_1_average_distance}
 
 distance_df = pd.DataFrame(distance_list)
 folder_path = f'bit_distribution/{network_name}'
 os.makedirs(folder_path, exist_ok=True)
-distance_df.to_csv(f'{folder_path}/criticality.csv')
+distance_df.to_csv(f'{folder_path}/criticality_{mode}.csv')
