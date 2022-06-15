@@ -3,15 +3,17 @@ import torch
 import argparse
 
 from fault_injection import exhaustive_fault_injection, run_golden_inference
-from models.utils import load_CIFAR10_datasets, load_from_dict
+from models.utils import load_CIFAR10_datasets, load_unet_dataset, load_from_dict
 from models.resnet import resnet20
 from models.densenet import densenet121
 from models.mobilenetv2 import MobileNetV2
+from models.unet import UNet
 
 
 def main(layer_start=0,
          layer_end=-1,
          network_name='resnet20',
+         dataset_name='CIFAR-10',
          test_image_per_class=1,
          avoid_mantissa=False,
          target_memory_GB=None,
@@ -32,17 +34,27 @@ def main(layer_start=0,
         memory_fraction = target_memory / total_memory
         torch.cuda.set_per_process_memory_fraction(memory_fraction, device=None)
 
-    _, _, test_loader = load_CIFAR10_datasets(test_batch_size=batch_size, test_image_per_class=test_image_per_class)
+    if dataset_name == 'CIFAR-10':
+        _, _, test_loader = load_CIFAR10_datasets(test_batch_size=batch_size, test_image_per_class=test_image_per_class)
+    elif dataset_name == 'UNET':
+        test_loader = load_unet_dataset(batch_size=batch_size)
 
     if network_name == 'resnet20':
         network = resnet20()
         network_path = 'models/pretrained_models/resnet20-trained.th'
+        mode = 'classification'
     elif network_name == 'densenet121':
         network = densenet121()
         network_path = 'models/pretrained_models/densenet121.pt'
+        mode = 'classification'
     elif network_name == 'mobilenet-v2':
         network = MobileNetV2()
         network_path = 'models/pretrained_models/mobilenet.pth'
+        mode = 'classification'
+    elif network_name == 'UNet':
+        network = UNet()
+        network_path = 'models/pretrained_models/unet.pt'
+        mode = 'segmentation'
 
     network.to(device)
     load_from_dict(network=network,
@@ -61,12 +73,14 @@ def main(layer_start=0,
 
     network_layers_shape = [layer.shape for layer in network_layers]
 
-    y_golden = run_golden_inference(loader=test_loader,
-                                    device=device,
-                                    net=network,
-                                    layer_start=layer_start,
-                                    layer_end=layer_end,
-                                    net_layer_shape=network_layers_shape)
+    y_golden, iou_golden = run_golden_inference(loader=test_loader,
+                                                device=device,
+                                                net=network,
+                                                net_name=network_name,
+                                                layer_start=layer_start,
+                                                layer_end=layer_end,
+                                                net_layer_shape=network_layers_shape,
+                                                mode=mode)
     torch.cuda.empty_cache()
 
     exhaustive_fault_injection(net=network,
@@ -77,7 +91,9 @@ def main(layer_start=0,
                                layer_start=layer_start,
                                layer_end=layer_end,
                                avoid_mantissa=avoid_mantissa,
-                               y_golden=y_golden)
+                               y_golden=y_golden,
+                               iou_golden=iou_golden,
+                               mode=mode)
 
 
 if __name__ == '__main__':
@@ -87,7 +103,9 @@ if __name__ == '__main__':
     parser.add_argument('--layer-end', type=int, default=-1,
                         help='In which layer end the exhaustive fault injection campaign')
     parser.add_argument('--network', type=str, default='resnet20',
-                        choices=['resnet20', 'densenet121', 'mobilenet-v2'])
+                        choices=['resnet20', 'densenet121', 'mobilenet-v2', 'UNet'])
+    parser.add_argument('--dataset', type=str, default='CIFAR-10',
+                        choices=['CIFAR-10', 'UNET'])
     parser.add_argument('--image_per_class', type=int, default=1,
                         help='How many image per class for each inference run')
     parser.add_argument('--avoid_mantissa', action='store_true', default=False,
@@ -104,6 +122,7 @@ if __name__ == '__main__':
     _layer_start = args.layer_start
     _layer_end = args.layer_end
     _network_name = args.network
+    _dataset_name = args.dataset
     _avoid_mantissa = args.avoid_mantissa
     _image_per_class = args.image_per_class
     _target_memory_GB = args.target_memory_GB
@@ -114,6 +133,7 @@ if __name__ == '__main__':
     main(layer_start=_layer_start,
          layer_end=_layer_end,
          network_name=_network_name,
+         dataset_name=_dataset_name,
          test_image_per_class=_image_per_class,
          avoid_mantissa=_avoid_mantissa,
          target_memory_GB=_target_memory_GB,
