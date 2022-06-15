@@ -1,6 +1,26 @@
+import pickle
+import numpy as np
+
 import torch
+import math
 from torchvision import transforms
 from torchvision.datasets import CIFAR10
+
+
+def load_unet_dataset(batch_size=32):
+
+    filename='weights/unet_loader.npy'
+
+    with open(filename, 'rb') as f:
+        dataset_list = np.array(pickle.load(f))
+
+        dataset_x = torch.stack([tensor.squeeze() for tensor in list(zip(*dataset_list))[0]])
+        dataset_y = torch.stack([tensor.squeeze().int() for tensor in list(zip(*dataset_list))[1]])
+        dataset = torch.utils.data.TensorDataset(dataset_x, dataset_y)
+
+        loader = torch.utils.data.DataLoader(dataset, batch_size=batch_size)
+
+    return loader
 
 
 def load_CIFAR10_datasets(train_batch_size=32, train_split=0.8, test_batch_size=1, test_image_per_class=None):
