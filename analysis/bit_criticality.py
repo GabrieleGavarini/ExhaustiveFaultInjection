@@ -2,6 +2,7 @@ import os
 
 from models.mobilenetv2 import MobileNetV2
 from models.resnet import resnet20
+from models.unet import UNet
 from models.utils import load_from_dict
 import struct
 
@@ -17,17 +18,19 @@ def float_to_bin(num):
 
 
 def bin_to_float(binary):
-    return struct.unpack('!f',struct.pack('!I', int(binary, 2)))[0]
+    return struct.unpack('!f', struct.pack('!I', int(binary, 2)))[0]
 
 
 def binary_to_count(binary_number):
     return [int(bit) for bit in binary_number]
 
 
+device = 'cpu'
+
 mode = 'distance'
 # mode = 'relative_distance'
 
-network_name = 'mobilenet'
+network_name = 'UNet'
 
 if network_name == 'resnet':
     network = resnet20()
@@ -35,12 +38,17 @@ if network_name == 'resnet':
 elif network_name == 'mobilenet':
     network = MobileNetV2()
     network_path = '../models/pretrained_models/mobilenet.pth'
+elif network_name == 'UNet':
+    network = UNet()
+    network_path = '../models/pretrained_models/unet.pt'
 
+
+print('Loading weights')
 load_from_dict(network=network,
-               device='cuda',
+               device=device,
                path=network_path)
 
-
+print('Loading binary weights')
 weights = [param.flatten().detach().numpy() for name, param in network.named_parameters() if (('conv' in name or 'linear' in name) and 'weight' in name)]
 weights_binary = [np.flip([binary_to_count(float_to_bin(layer_weight)) for layer_weight in layer_weights]) for layer_weights in weights]
 weights_binary = np.concatenate(weights_binary)
@@ -48,6 +56,7 @@ weights_binary_df = pd.DataFrame(weights_binary)
 
 distance_list = {}
 
+print('Beginning computation of bit distance')
 for bit_index in np.arange(23, 32):
     bit_at_0_average_distance = 0
     bit_at_0 = weights_binary_df[weights_binary_df.iloc[:, bit_index] == 0]
