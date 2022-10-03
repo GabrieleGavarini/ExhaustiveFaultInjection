@@ -155,7 +155,7 @@ def return_complete_df(image_df, avoid_mantissa=False, mantissa_injections=None)
         if injected_faults == 0:
             masked = 1
         else:
-            masked = np.sum(complete_df_bit.Top_1 == complete_df_bit.Golden) / injected_faults
+            masked = len(complete_df_bit[complete_df_bit.Top_1 == complete_df_bit.Golden]) / injected_faults
         critical = 1 - masked
 
         result_dicts.append({'Bit': bit,
@@ -261,6 +261,25 @@ def extract_sample_p_n_bit(net_name,
         intermediate_results['exhaustive_p'] = results_dataframe_complete
 
     return intermediate_results
+
+
+def extract_p_per_bit(net_name,
+                      number_of_samples_folder='../fault_injection/number_of_samples'):
+
+    number_of_samples_folder = f'{number_of_samples_folder}/{net_name}'
+    N = pd.read_csv(f'{number_of_samples_folder}/N_layers.csv', index_col=0)['N']
+
+    number_of_chunks = 1000
+    chunksize = int((100 * N.values.sum() / 2) / number_of_chunks)
+
+    image_df = _create_df(net_name,
+                          number_of_chunks=number_of_chunks,
+                          chunksize=chunksize)
+
+    p_per_bit_df = pd.DataFrame(return_complete_df(image_df))
+    p_per_bit_df = p_per_bit_df.set_index('Bit')
+
+    return p_per_bit_df
 
 
 def extract_samples_p_n(layer_start,

@@ -1,13 +1,13 @@
-from utils import extract_samples_p_n
+from utils import extract_samples_p_n, extract_p_per_bit
 from graph import Plotter
 import numpy as np
 import pandas as pd
 
 
-total_layer_number = 54
+total_layer_number = 20
 
 layer_start = 0
-layer_end = 29
+layer_end = 20
 avoid_mantissa = True
 load_if_exist = True
 
@@ -16,7 +16,10 @@ number_unbiased_samples = 10
 number_date_per_layer_samples = 10
 number_date_samples = 10
 
-net_name = 'mobilenet-v2'
+net_name = 'resnet20'
+
+p_per_bit = extract_p_per_bit(net_name)
+p_per_bit.to_csv(f'csv/{net_name}_p_per_bit.csv')
 
 biased_sample, unbiased_sample, date_per_layer,  date, exhaustive_p = extract_samples_p_n(layer_start=layer_start,
                                                                                           layer_end=layer_end,
